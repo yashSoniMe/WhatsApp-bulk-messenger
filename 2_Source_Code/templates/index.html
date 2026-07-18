@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WhatsApp Personalized Automator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background: #f4f6f9; font-family: system-ui, -apple-system, sans-serif; }
+        .card-panel { border: none; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); background: white; min-height: 500px; }
+        .btn-wa { background: #128C7E; color: white; font-weight: bold; border-radius: 8px; transition: background 0.2s; }
+        .btn-wa:hover { background: #0a5249; color: white; }
+        #console-log { background: #0b141a; color: #00ff66; font-family: 'Courier New', monospace; height: 420px; overflow-y: auto; border-radius: 8px; padding: 15px; font-size: 0.85rem; }
+        .log-line { border-bottom: 1px solid #182229; padding: 4px 0; }
+        .tag-helper { background-color: #e3f2fd; border: 1px solid #90caf9; color: #0d47a1; cursor: pointer; display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid px-5 py-5">
+    <h2 class="mb-4 text-center text-dark fw-bold"><i class="fa-brands fa-whatsapp text-success me-2"></i> WhatsApp Bulk Messenger</h2>
+    
+    <div class="row">
+        <div class="col-lg-5 mb-4">
+            <div class="card-panel p-4 d-flex flex-column justify-content-between">
+                <div>
+                    <h4 class="text-secondary border-bottom pb-2 mb-4"><i class="fa-solid fa-sliders me-2"></i> Campaign Control</h4>
+                    <form id="campaignForm">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Upload Contacts (Excel File)</label>
+                            <input type="file" name="excel_file" class="form-control" accept=".xlsx, .xls" required>
+                            <small class="text-muted">Ensure your file has columns named exactly: <b>phone</b> and <b>name</b></small>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="form-label fw-bold d-flex justify-content-between align-items-center">
+                                <span>Message Template</span>
+                                <span class="tag-helper" onclick="insertPlaceholder()" title="Click to insert placeholder at cursor location">
+                                    <i class="fa-solid fa-plus me-1"></i> Add {name} tag
+                                </span>
+                            </label>
+                            <textarea id="messageBox" name="message" class="form-control" rows="6" placeholder="Dear {name}, thank you for your support!" required></textarea>
+                            <small class="text-muted mt-1 d-block">Write <code>{name}</code> where you want each recipient's name to appear dynamically.</small>
+                        </div>
+                    </form>
+                </div>
+                <button type="submit" form="campaignForm" class="btn btn-wa w-100 py-3 text-uppercase" id="launchBtn">
+                    <i class="fa-solid fa-play me-2"></i> Launch Delivery System
+                </button>
+            </div>
+        </div>
+
+        <div class="col-lg-7 mb-4">
+            <div class="card-panel p-4 d-flex flex-column">
+                <h4 class="text-secondary border-bottom pb-2 mb-3 d-flex justify-content-between align-items-center">
+                    <span><i class="fa-solid fa-terminal me-2"></i> Activity Console Output</span>
+                    <div class="spinner-border spinner-border-sm text-success d-none" id="loader" role="status"></div>
+                </h4>
+                <div id="console-log" class="flex-grow-1">
+                    <div class="log-line text-muted">[System Node Ready] Campaign logs will show here...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Helper function to easily insert {name} where the cursor is
+    function insertPlaceholder() {
+        const txtarea = document.getElementById("messageBox");
+        const scrollPos = txtarea.scrollTop;
+        const caretPos = txtarea.selectionStart;
+
+        const front = (txtarea.value).substring(0, caretPos);
+        const back = (txtarea.value).substring(txtarea.selectionEnd, txtarea.value.length);
+        
+        txtarea.value = front + "{name}" + back;
+        txtarea.selectionStart = caretPos + 6;
+        txtarea.selectionEnd = caretPos + 6;
+        txtarea.focus();
+        txtarea.scrollTop = scrollPos;
+    }
+
+    document.getElementById('campaignForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const launchBtn = document.getElementById('launchBtn');
+        const loader = document.getElementById('loader');
+        const logDisplay = document.getElementById('console-log');
+
+        launchBtn.disabled = true;
+        loader.classList.remove('d-none');
+        logDisplay.innerHTML = '<div class="log-line text-warning">[Initialize Setup] Connecting worker threads...</div>';
+
+        const formData = new FormData(this);
+        
+        try {
+            const response = await fetch('/run', { method: 'POST', body: formData });
+            if (!response.ok) throw new Error("Failed execution hook initialization");
+
+            const logPipe = new EventSource('/stream-logs');
+            
+            logPipe.onmessage = function(event) {
+                const line = document.createElement('div');
+                line.className = 'log-line';
+                
+                if (event.data.includes('❌')) line.style.color = '#ff4d4d';
+                else if (event.data.includes('✅')) line.style.color = '#25D366';
+                
+                line.innerHTML = `[${new Date().toLocaleTimeString()}] ${event.data}`;
+                logDisplay.appendChild(line);
+                logDisplay.scrollTop = logDisplay.scrollHeight;
+
+                if (event.data.includes('[Campaign Completed]') || event.data.includes('[Campaign Aborted]')) {
+                    logPipe.close();
+                    launchBtn.disabled = false;
+                    loader.classList.add('d-none');
+                }
+            };
+
+            logPipe.onerror = function() {
+                logPipe.close();
+                launchBtn.disabled = false;
+                loader.classList.add('d-none');
+            };
+
+        } catch (err) {
+            logDisplay.innerHTML += `<div class="log-line text-danger">[Network Exception] Internal framework failure: ${err.message}</div>`;
+            launchBtn.disabled = false;
+            loader.classList.add('d-none');
+        }
+    });
+</script>
+</body>
+</html>

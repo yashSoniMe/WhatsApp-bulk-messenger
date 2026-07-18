@@ -1,0 +1,28 @@
+Project: WhatsApp Bulk Messenger
+
+Project Description:
+
+A lightweight Flask web app for sending personalized WhatsApp messages to a list of contacts via browser automation. Users upload an Excel file containing name and phone columns and provide a message template with a {name} placeholder; the app then drives Microsoft Edge through Selenium to open WhatsApp Web, log in via QR code, and send each contact a personalized message in sequence.
+
+Tech stack:
+
+Backend: Flask
+Automation: Selenium + Microsoft Edge WebDriver (via webdriver-manager)
+Data handling: openpyxl for reading the Excel contact list
+Frontend: a single HTML page with a live log stream
+
+Steps for Setup & Running:
+
+1. Python 3.9 or later & Microsoft Edge Browser Should be Installed
+2. python -m pip install -r requirements.txt - Run this command to install required Packages
+3. run app.py file
+4. open http://localhost:5000
+
+How it works:
+
+1.The user uploads an .xlsx file with recipient name and phone numbers, plus a message template.
+2.Flask saves the file and kicks off the campaign in a background thread.
+3.Selenium launches Edge, opens WhatsApp Web, and waits for the user to scan the QR code to authenticate.
+4.For each row in the spreadsheet, it opens a direct chat link for that phone number, types the personalized message, and sends it.
+5.Progress and errors (invalid numbers, delivery failures, etc.) are streamed live to the browser via Server-Sent Events, so the user can watch the campaign run in real time.
+
